@@ -1,7 +1,9 @@
 from tkinter import *
 import time
 import math
+from math import sin, cos, tan, asin, acos, atan
 import formulas
+import random
 master = Tk()
 
 canvas_width = 1500
@@ -30,7 +32,57 @@ class Target:
     def move(self, x, y):
         self.canvas.move(self.id, x, y)
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
-
+    def run(self):
+        seed = random.random()
+        done = False
+        if seed < 0.15:
+            newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) <= 45:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+        elif seed < 0.40:
+            newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) >= 45 and math.degrees(atan(math.radians(newx/newy))) <= 90:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+        elif seed < 0.65:
+            newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) >= 90 and math.degrees(atan(math.radians(newx/newy))) <= 135:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+        elif seed < 0.8:
+            newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) >= 135 and math.degrees(atan(math.radians(newx/newy))) <= 180:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+        elif seed < 0.9:
+            newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) >= 180 and math.degrees(atan(math.radians(newx/newy))) <= 225:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1,1), random.uniform(-1,1)
+        else:
+            newx, newy = random.uniform(-1, 1), random.uniform(-1, 1)
+            while done != True:
+                if math.degrees(atan(math.radians(newx/newy))) >= 315 and math.degrees(atan(math.radians(newx/newy))) <= 360:
+                    self.move(newx, newy)
+                    done = True
+                else:
+                    newx, newy = random.uniform(-1, 1), random.uniform(-1, 1)
 
 class UAV:
     def __init__(self, canvas, color, starting, width):
@@ -49,6 +101,8 @@ class UAV:
 
     def getSignalStrength(self, signal):
         return signal.getStrength(self.pos)
+
+    
 class Signal:
     def __init__(self, source, power):
         self.source = source
@@ -69,5 +123,10 @@ def animation(width, height):
     print(drone.getSignalStrength(target.signal))
     drone.move(750,350)
     print(drone.getSignalStrength(target.signal))
+    print(random.uniform(-1, 1))
+    while True:
+        print("here")
+        target.run()
+        time.sleep(1)
 animation(canvas_width, canvas_height)
 mainloop()
