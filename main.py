@@ -16,9 +16,6 @@ canvas = Canvas(master,
 canvas.pack()
 master.title("UAV Tracking Simulation")
 master.resizable(0, 0)
-master.wm_attributes("-topmost", 1)
-
-y = int(canvas_height / 2)
 
 class Target:
     def __init__(self, canvas, color, starting, width):
@@ -29,7 +26,7 @@ class Target:
         self.starting = starting
         self.id = canvas.create_rectangle(self.starting[0], self.starting[1], self.starting[0]+width, self.starting[1]+width, fill = self.color)
         self.pos = [self.starting[0]+width/2, self.starting[1]+width/2]
-        self.signal = Signal(self, 100)
+        self.signal = Signal(self, 10000)
         self.heading = 0
     def move(self, x, y):
         self.canvas.move(self.id, x, y)
@@ -83,6 +80,10 @@ class UAV:
         self.starting = starting
         self.id = canvas.create_rectangle(self.starting[0], self.starting[1], self.starting[0]+width, self.starting[1]+width, fill = self.color)
         self.pos = [self.starting[0]+width/2, self.starting[1]+width/2]
+        self.tracks = []
+        self.trackCount = 0
+        self.guess = [500, 500]
+        self.badGuess = 0
     def move(self, x, y):
         self.canvas.move(self.id, x, y)
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
@@ -91,6 +92,53 @@ class UAV:
 
     def getSignalStrength(self, signal):
         return signal.getStrength(self.pos)
+    
+    def track1(self, signal):
+        def searchBounds(bounds, cir1, cir2, cir3, interval):
+            bestx, besty = bounds[0], bounds[1]
+            x = bounds[0]
+            y = bounds[1]
+            minDist = 10000000000
+            while x <= bounds[2]:
+                while y <= bounds[3]:
+                    dist1 = pointToCircle(x, y, cir1[1], cir1[2], cir1[0])
+                    dist2 = pointToCircle(x, y, cir2[1], cir2[2], cir2[0])
+                    dist3 = pointToCircle(x, y, cir3[1], cir3[2], cir3[0])
+                    curDist = dist1+dist2+dist3
+                    if curDist < minDist:
+                        minDist = curDist
+                        bestx = x
+                        besty = y
+                    y+= interval
+                x += interval
+            posMinx = bestx - interval
+            posMaxx = bestx + interval
+            posMiny = besty - interval
+            posMaxy = besty + interval
+            if interval < 0.5:
+                return [x,y]
+            else:
+                return(searchBounds([posMinx, posMiny, posMaxx, posMaxy], cir1, cir2, cir3, interval/2))
+    
+
+        strength = self.getSignalStrength(signal)
+        distance = math.sqrt(10000/strength)
+        self.tracks.append([distance, self.pos[0], self.pos[1]])
+        if self.trackCount >= 2:
+            oldGuess = self.guess
+            print(oldGuess)
+            x1, y1, x2, y2 = formulas.getBounds([self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount]])
+            self.guess = formulas.searchBounds([x1, y1, x2, y2], self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount], 10)
+            if self.trackCount > 25:
+                if formulas.distance(self.guess[0], self.guess[1], oldGuess[0], oldGuess[1]) > 20.0:
+                    self.badGuess += 1
+                if self.badGuess < 5:
+                    self.guess = oldGuess
+                else:
+                    self.badGuess = 0
+            canvas.create_rectangle(self.guess[0]-2.5, self.guess[1]-2.5, self.guess[0]+2.5, self.guess[1]+2.5, fill = "blue")
+        self.trackCount += 1
+
 
     
 class Signal:
@@ -106,17 +154,38 @@ class Signal:
         returnPower = self.power/distance**2
         return returnPower
 
+def create_circle(x, y, r):
+    canvas.create_oval(x-r, y-r, x+r, y+r)
 
 def animation(width, height):
     target = Target(canvas, "red", [width/2, height/2], 10)
-    drone = UAV(canvas, "blue", [0, 0], 10)
-    
+    drone = UAV(canvas, "blue", [500, 300], 10)
+    canvas.create_rectangle(1225, 5, 1495, 200, fill = "white")
+    canvas.create_text(1250, 10, anchor="nw", text = "Simulation Information: ")
+    target_real = canvas.create_text(1250, 25, anchor="nw", text = "Target Position: ("+str(round(target.pos[0], 2))+", "+str(round(target.pos[1], 2))+")")
+    uav_real = canvas.create_text(1250, 40, anchor="nw", text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
+    sig_strength = canvas.create_text(1250, 55, anchor="nw", text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
     master.update_idletasks()#needed tkinter things
     master.update()
+    count = 0
     while True:
+        count += 1
+        
+        canvas.itemconfig(target_real, text = "Target Position: ("+str(round(target.pos[0],2))+", "+str(round(target.pos[1],2))+")")
+        canvas.itemconfig(uav_real, text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
+        canvas.itemconfig(sig_strength, text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
+        strength = drone.getSignalStrength(target.signal)
+        distance = math.sqrt(10000/strength)
+        if count %3 == 0:
+            drone.move(15, 15)
+        elif count % 4 == 0:
+            drone.move(20, 0)
+        elif count % 2 == 0:
+            drone.move(0, 20)
         target.run()
-        print(drone.getSignalStrength(target.signal))
-        time.sleep(0.03)
+        drone.track1(target.signal)
+        #create_circle(drone.pos[0], drone.pos[1], distance)
+        time.sleep(0.5)
         master.update_idletasks()#needed tkinter things
         master.update()
 
