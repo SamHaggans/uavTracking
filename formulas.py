@@ -1,4 +1,5 @@
 import math
+from math import sin, cos, tan, acos, asin, atan
 def distance(x1, y1, x2, y2):
     value = abs(math.sqrt((x2-x1)**2+(y2-y1)**2))
     if value < 1:
@@ -40,7 +41,7 @@ def getBounds(array):
                 maxy = posMaxy
         return minx, miny, maxx, maxy
 
-def searchBounds(bounds, cir1, cir2, cir3, interval):
+def searchBounds(bounds, circles, interval):
     bestx, besty = bounds[0], bounds[1]
     x = bounds[0]
     y = bounds[1]
@@ -48,10 +49,9 @@ def searchBounds(bounds, cir1, cir2, cir3, interval):
     while x <= bounds[2]:
         y = bounds[1]
         while y <= bounds[3]:
-            dist1 = pointToCircle(x, y, cir1[1], cir1[2], cir1[0])
-            dist2 = pointToCircle(x, y, cir2[1], cir2[2], cir2[0])
-            dist3 = pointToCircle(x, y, cir3[1], cir3[2], cir3[0])
-            curDist = dist1+dist2+dist3
+            curDist = 0
+            for cir in circles:
+                curDist += pointToCircle(x, y, cir[1], cir[2], cir[0])
             if curDist < minDist:
                 minDist = curDist
                 bestx = x
@@ -68,10 +68,55 @@ def searchBounds(bounds, cir1, cir2, cir3, interval):
     if interval < 0.001:
         return [bestx,besty]
     else:
-        return(searchBounds([posMinx, posMiny, posMaxx, posMaxy], cir1, cir2, cir3, interval/2))
+        return(searchBounds([posMinx, posMiny, posMaxx, posMaxy], circles, interval/2))
 
-x1, y1, x2, y2 = getBounds([[5, 0, 0], [5, 10, 0], [5, 5, 100]])
+def getAngle(px, py, tx, ty):
+    x, y = px-tx, py-ty
+    angle = 0
 
-print(searchBounds([x1, y1, x2, y2], [5, 0, 0], [5, 10, 0], [5, 5, 100], 5))
-
+    if x == 0:
+        if y > 0:
+            angle = -90
+        else:
+            angle = 90
+    if y == 0:
+        if x > 0:
+            angle = 0
+        else:
+            angle = 180
+    if x > 0 and y < 0:
+        angle = 90-math.degrees(-atan(x/y))
+    if x < 0 and y < 0:
+        angle = math.degrees(atan(x/y))+90
+    if x > 0 and y > 0:
+        angle = -90-math.degrees(-atan(x/y))
+    if x < 0 and y > 0:
+        angle = math.degrees(atan(x/y))-90
     
+    return angle
+
+def getAverage(pointArray):
+    lenInit = len(pointArray)
+    points = pointArray
+    sumx = 0
+    sumy = 0 
+    for point in points:
+        sumx += point[0]
+        sumy += point[1]
+    avgx = sumx / len(points)
+    avgy = sumy / len(points)
+
+    toDelete = []
+    for i in range(len(points)-1):
+        if (distance(points[i][0], points[i][1], avgx, avgy))**2 > 5000:
+            toDelete.append(points[i])
+    for i in toDelete:
+        del i
+    if lenInit == len(points):
+        return [avgx, avgy]
+    else:
+        return getAverage(points)
+
+
+#pints = [[0,0],[1,1],[2,2],[3,3],[3,4],[4,5],[4,6],[80,3]]
+#print(getAverage(pints))

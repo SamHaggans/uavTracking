@@ -83,10 +83,13 @@ class UAV:
         self.tracks = []
         self.trackCount = 0
         self.guess = [500, 500]
+        self.guesses = [[500,500]]
         self.badGuess = 0
+        self.moveCount = 0
     def move(self, x, y):
         self.canvas.move(self.id, x, y)
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
+        self.moveCount +=1
     def getPos(self):
         return self.pos
 
@@ -94,80 +97,72 @@ class UAV:
         return signal.getStrength(self.pos)
     
     def circle(self, x1, y1):
-        selfx = self.pos[0]
-        selfy = self.pos[1]
 
-        x, y = selfx-x1, selfy-y1
-        angle = 0
-
-        if x == 0:
-            if y > 0:
-                angle = -90
-            else:
-                angle = 90
-        if y == 0:
-            if x > 0:
-                angle = 0
-            else:
-                angle = 180
-        if x > 0 and y < 0:
-            angle = 90-math.degrees(-atan(x/y))
-        if x < 0 and y < 0:
-            angle = math.degrees(atan(x/y))+90
-        if x > 0 and y > 0:
-            angle = -90-math.degrees(-atan(x/y))
-        if x < 0 and y > 0:
-            angle = math.degrees(atan(x/y))-90
-        
-        movex = sin(math.radians(angle))
-        movey = cos(math.radians(angle))
+        angle = formulas.getAngle(self.pos[0], self.pos[1], x1, y1)
+        movex = sin(math.radians(angle))*2
+        movey = cos(math.radians(angle))*2
         self.move(movex, movey)
 
     def track1(self, signal):
-        def searchBounds(bounds, cir1, cir2, cir3, interval):
-            bestx, besty = bounds[0], bounds[1]
-            x = bounds[0]
-            y = bounds[1]
-            minDist = 10000000000
-            while x <= bounds[2]:
-                while y <= bounds[3]:
-                    dist1 = pointToCircle(x, y, cir1[1], cir1[2], cir1[0])
-                    dist2 = pointToCircle(x, y, cir2[1], cir2[2], cir2[0])
-                    dist3 = pointToCircle(x, y, cir3[1], cir3[2], cir3[0])
-                    curDist = dist1+dist2+dist3
-                    if curDist < minDist:
-                        minDist = curDist
-                        bestx = x
-                        besty = y
-                    y+= interval
-                x += interval
-            posMinx = bestx - interval
-            posMaxx = bestx + interval
-            posMiny = besty - interval
-            posMaxy = besty + interval
-            if interval < 0.5:
-                return [x,y]
-            else:
-                return(searchBounds([posMinx, posMiny, posMaxx, posMaxy], cir1, cir2, cir3, interval/2))
-    
-
+        
         strength = self.getSignalStrength(signal)
         distance = math.sqrt(10000/strength)
-        self.tracks.append([distance, self.pos[0], self.pos[1]])
-        if self.trackCount >= 2:
-            oldGuess = self.guess
-            x1, y1, x2, y2 = formulas.getBounds([self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount]])
-            self.guess = formulas.searchBounds([x1, y1, x2, y2], self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount], 10)
-            if self.trackCount > 5:
-                if formulas.distance(self.guess[0], self.guess[1], oldGuess[0], oldGuess[1]) > 15.0:
-                    self.badGuess += 1
-                if self.badGuess < 10:
-                    self.guess = oldGuess
-                else:
-                    self.badGuess = 0
-            canvas.create_rectangle(self.guess[0]-2.5, self.guess[1]-2.5, self.guess[0]+2.5, self.guess[1]+2.5, fill = "blue")
-        self.trackCount += 1
+        if self.moveCount %10 == 0:
+            self.tracks.append([distance, self.pos[0], self.pos[1]])
+            if self.trackCount >= 10:
+                cirCount = 3
+                circles = []
+                for i in range(cirCount):
+                    circles.append(self.tracks[self.trackCount-i])
 
+                x1, y1, x2, y2 = formulas.getBounds(circles)
+
+                self.guess = formulas.searchBounds([x1, y1, x2, y2], circles, 10)
+                if len(self.guesses) > 10:
+                    pointCount = 5
+                    avgPoints = []
+                    for i in range(pointCount):
+                        avgPoints.append(self.guesses[len(self.guesses)-1-i])
+
+                    lastNAvg = formulas.getAverage(avgPoints)
+                    if formulas.distance(self.guess[0],self.guess[1], lastNAvg[0], lastNAvg[1]) < 80:
+                        self.guesses.append(self.guess)
+                    else:
+                        self.guess = self.guesses[len(self.guesses)-1]
+                else:
+                    self.guesses.append(self.guess)
+                canvas.create_rectangle(self.guess[0]-2.5, self.guess[1]-2.5, self.guess[0]+2.5, self.guess[1]+2.5, fill = "orange")
+            self.trackCount += 1
+
+        if distance > 150:
+            if len(self.guesses) > 10:
+                pointCount = 5
+                avgPoints = []
+                for i in range(pointCount):
+                    avgPoints.append(self.guesses[len(self.guesses)-1-i])
+
+                lastNAvg = formulas.getAverage(avgPoints)
+                curAngle = formulas.getAngle(self.pos[0],self.pos[1], lastNAvg[0], lastNAvg[1])
+            else:
+                curAngle = formulas.getAngle(self.pos[0],self.pos[1], self.guess[0], self.guess[1])
+            
+            sinAngle = 45*sin(distance/2)
+            movAngle = curAngle + sinAngle
+
+
+            self.move(-2*cos(math.radians(movAngle)), 2*sin(math.radians(movAngle)))
+        else:
+            if len(self.guesses) > 10:
+                pointCount = 5
+                avgPoints = []
+                for i in range(pointCount):
+                    avgPoints.append(self.guesses[len(self.guesses)-1-i])
+
+                lastNAvg = formulas.getAverage(avgPoints)
+                self.circle(lastNAvg[0], lastNAvg[1])
+            else:
+                self.circle(self.guess[0], self.guess[1])
+            
 
     
 class Signal:
@@ -187,17 +182,18 @@ def create_circle(x, y, r):
     canvas.create_oval(x-r, y-r, x+r, y+r)
 
 def animation(width, height):
-    canvas.create_rectangle(0,0,80,80)
+    
     target = Target(canvas, "red", [width/2, height/2], 10)
-    drone = UAV(canvas, "blue", [500, 300], 10)
+    drone = UAV(canvas, "blue", [300, 300], 10)
     canvas.create_rectangle(1225, 5, 1495, 200, fill = "white")
     canvas.create_text(1250, 10, anchor="nw", text = "Simulation Information: ")
     target_real = canvas.create_text(1250, 25, anchor="nw", text = "Target Position: ("+str(round(target.pos[0], 2))+", "+str(round(target.pos[1], 2))+")")
     uav_real = canvas.create_text(1250, 40, anchor="nw", text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
     sig_strength = canvas.create_text(1250, 55, anchor="nw", text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
-    master.update_idletasks()#needed tkinter things
+    master.update_idletasks()
     master.update()
     count = 0
+    writeCount = 0
     while True:
         count += 1
         
@@ -207,14 +203,17 @@ def animation(width, height):
         strength = drone.getSignalStrength(target.signal)
         distance = math.sqrt(10000/strength)
 
-        canvas.create_rectangle(400,400,410,410)
-        drone.circle(400, 400)
-        print(formulas.distance(drone.pos[0], drone.pos[1], 400, 400))
-        #target.run()
-        #drone.track1(target.signal)
-        #create_circle(drone.pos[0], drone.pos[1], distance)
+        target.run()
+        drone.track1(target.signal)
+        
+        if len(drone.guesses) > 3:
+            actualDistance = formulas.distance(drone.guess[0], drone.guess[1], target.pos[0], target.pos[1])
+            writeCount +=1
+            filey = open('results.txt','a')
+            filey.write(str(writeCount) + "," + str(actualDistance)+"\n")
+            filey.close()
         time.sleep(0.03)
-        master.update_idletasks()#needed tkinter things
+        master.update_idletasks()
         master.update()
         
 animation(canvas_width, canvas_height)
