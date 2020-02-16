@@ -93,6 +93,36 @@ class UAV:
     def getSignalStrength(self, signal):
         return signal.getStrength(self.pos)
     
+    def circle(self, x1, y1):
+        selfx = self.pos[0]
+        selfy = self.pos[1]
+
+        x, y = selfx-x1, selfy-y1
+        angle = 0
+
+        if x == 0:
+            if y > 0:
+                angle = -90
+            else:
+                angle = 90
+        if y == 0:
+            if x > 0:
+                angle = 0
+            else:
+                angle = 180
+        if x > 0 and y < 0:
+            angle = 90-math.degrees(-atan(x/y))
+        if x < 0 and y < 0:
+            angle = math.degrees(atan(x/y))+90
+        if x > 0 and y > 0:
+            angle = -90-math.degrees(-atan(x/y))
+        if x < 0 and y > 0:
+            angle = math.degrees(atan(x/y))-90
+        
+        movex = sin(math.radians(angle))
+        movey = cos(math.radians(angle))
+        self.move(movex, movey)
+
     def track1(self, signal):
         def searchBounds(bounds, cir1, cir2, cir3, interval):
             bestx, besty = bounds[0], bounds[1]
@@ -126,13 +156,12 @@ class UAV:
         self.tracks.append([distance, self.pos[0], self.pos[1]])
         if self.trackCount >= 2:
             oldGuess = self.guess
-            print(oldGuess)
             x1, y1, x2, y2 = formulas.getBounds([self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount]])
             self.guess = formulas.searchBounds([x1, y1, x2, y2], self.tracks[self.trackCount-2], self.tracks[self.trackCount-1], self.tracks[self.trackCount], 10)
-            if self.trackCount > 25:
-                if formulas.distance(self.guess[0], self.guess[1], oldGuess[0], oldGuess[1]) > 20.0:
+            if self.trackCount > 5:
+                if formulas.distance(self.guess[0], self.guess[1], oldGuess[0], oldGuess[1]) > 15.0:
                     self.badGuess += 1
-                if self.badGuess < 5:
+                if self.badGuess < 10:
                     self.guess = oldGuess
                 else:
                     self.badGuess = 0
@@ -158,6 +187,7 @@ def create_circle(x, y, r):
     canvas.create_oval(x-r, y-r, x+r, y+r)
 
 def animation(width, height):
+    canvas.create_rectangle(0,0,80,80)
     target = Target(canvas, "red", [width/2, height/2], 10)
     drone = UAV(canvas, "blue", [500, 300], 10)
     canvas.create_rectangle(1225, 5, 1495, 200, fill = "white")
@@ -176,19 +206,17 @@ def animation(width, height):
         canvas.itemconfig(sig_strength, text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
         strength = drone.getSignalStrength(target.signal)
         distance = math.sqrt(10000/strength)
-        if count %3 == 0:
-            drone.move(15, 15)
-        elif count % 4 == 0:
-            drone.move(20, 0)
-        elif count % 2 == 0:
-            drone.move(0, 20)
-        target.run()
-        drone.track1(target.signal)
+
+        canvas.create_rectangle(400,400,410,410)
+        drone.circle(400, 400)
+        print(formulas.distance(drone.pos[0], drone.pos[1], 400, 400))
+        #target.run()
+        #drone.track1(target.signal)
         #create_circle(drone.pos[0], drone.pos[1], distance)
-        time.sleep(0.5)
+        time.sleep(0.03)
         master.update_idletasks()#needed tkinter things
         master.update()
-
+        
 animation(canvas_width, canvas_height)
 mainloop()
 
