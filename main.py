@@ -78,9 +78,11 @@ class UAV:
         self.moveCount = 0
         self.constrain = True
     def move(self, x, y):
+        oldPos = self.pos
         self.canvas.move(self.id, x, y)
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
         self.moveCount +=1
+        self.canvas.create_line(oldPos[0], oldPos[1], self.pos[0], self.pos[1], fill="light blue")
     def getPos(self):
         return self.pos
 
@@ -189,11 +191,11 @@ def animation(width, height, circles, moves, dist):
     master.resizable(0, 0)
     target = Target(canvas, "red", [width/2, height/2], 10)
     drone = UAV(canvas, "blue", [300, 200], 10)
-    canvas.create_rectangle(1225, 5, 1495, 200, fill = "white")
-    canvas.create_text(1250, 10, anchor="nw", text = "Simulation Information: ")
-    target_real = canvas.create_text(1250, 25, anchor="nw", text = "Target Position: ("+str(round(target.pos[0], 2))+", "+str(round(target.pos[1], 2))+")")
-    uav_real = canvas.create_text(1250, 40, anchor="nw", text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
-    sig_strength = canvas.create_text(1250, 55, anchor="nw", text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
+    canvas.create_rectangle(1125, 5, 1395, 200, fill = "white")
+    canvas.create_text(1150, 10, anchor="nw", text = "Simulation Information: ")
+    target_real = canvas.create_text(1150, 25, anchor="nw", text = "Target Position: ("+str(round(target.pos[0], 2))+", "+str(round(target.pos[1], 2))+")")
+    uav_real = canvas.create_text(1150, 40, anchor="nw", text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
+    sig_strength = canvas.create_text(1150, 55, anchor="nw", text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
     master.update_idletasks()
     master.update()
     count = 0
@@ -228,7 +230,7 @@ def animation(width, height, circles, moves, dist):
         master.update_idletasks()
         master.update()
     master.destroy()
-canvas_width = 1500
+canvas_width = 1400
 canvas_height = 700
 
 
