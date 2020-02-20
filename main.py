@@ -1,21 +1,10 @@
 from tkinter import *
+import csv
 import time
 import math
 from math import sin, cos, tan, asin, acos, atan
 import formulas
 import random
-
-master = Tk()
-
-canvas_width = 1500
-canvas_height = 700
-canvas = Canvas(master, 
-           width=canvas_width,
-           height=canvas_height)
-
-canvas.pack()
-master.title("UAV Tracking Simulation")
-master.resizable(0, 0)
 
 class Target:
     def __init__(self, canvas, color, starting, width):
@@ -33,6 +22,7 @@ class Target:
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
 
     def run(self):
+        canvas = self.canvas
         oldPos = self.pos
         seed = random.random()
         head_seed = random.uniform(-10, 10)
@@ -86,6 +76,7 @@ class UAV:
         self.guesses = [[500,500]]
         self.badGuess = 0
         self.moveCount = 0
+        self.constrain = True
     def move(self, x, y):
         self.canvas.move(self.id, x, y)
         self.pos = [self.canvas.coords(self.id)[0]+self.width/2, self.canvas.coords(self.id)[1]+self.width/2]
@@ -103,14 +94,14 @@ class UAV:
         movey = cos(math.radians(angle))*2
         self.move(movex, movey)
 
-    def track1(self, signal):
-        
+    def track1(self, signal, moveCountSearch, circlesCountInit, cirDist):
+        canvas = self.canvas
         strength = self.getSignalStrength(signal)
         distance = math.sqrt(10000/strength)
-        if self.moveCount %10 == 0:
+        if self.moveCount % moveCountSearch == 0:
             self.tracks.append([distance, self.pos[0], self.pos[1]])
-            if self.trackCount >= 10:
-                cirCount = 3
+            if self.trackCount >= circlesCountInit:
+                cirCount = circlesCountInit
                 circles = []
                 for i in range(cirCount):
                     circles.append(self.tracks[self.trackCount-i])
@@ -118,23 +109,30 @@ class UAV:
                 x1, y1, x2, y2 = formulas.getBounds(circles)
 
                 self.guess = formulas.searchBounds([x1, y1, x2, y2], circles, 10)
-                if len(self.guesses) > 10:
+                if self.badGuess > 10:
+                    self.constrain = False
+                if len(self.guesses) > 5:
                     pointCount = 5
                     avgPoints = []
                     for i in range(pointCount):
                         avgPoints.append(self.guesses[len(self.guesses)-1-i])
 
                     lastNAvg = formulas.getAverage(avgPoints)
-                    if formulas.distance(self.guess[0],self.guess[1], lastNAvg[0], lastNAvg[1]) < 80:
+                    if formulas.distance(self.guess[0],self.guess[1], lastNAvg[0], lastNAvg[1]) < 100:
                         self.guesses.append(self.guess)
                     else:
+                        self.badGuess +=1
                         self.guess = self.guesses[len(self.guesses)-1]
                 else:
+                    if (self.badGuess > 0):
+                        self.badGuess -= 1
+                        if self.badGuess == 0:
+                            self.constrain = True
                     self.guesses.append(self.guess)
                 canvas.create_rectangle(self.guess[0]-2.5, self.guess[1]-2.5, self.guess[0]+2.5, self.guess[1]+2.5, fill = "orange")
             self.trackCount += 1
 
-        if distance > 150:
+        if distance > cirDist:
             if len(self.guesses) > 10:
                 pointCount = 5
                 avgPoints = []
@@ -148,7 +146,6 @@ class UAV:
             
             sinAngle = 45*sin(distance/2)
             movAngle = curAngle + sinAngle
-
 
             self.move(-2*cos(math.radians(movAngle)), 2*sin(math.radians(movAngle)))
         else:
@@ -181,10 +178,17 @@ class Signal:
 def create_circle(x, y, r):
     canvas.create_oval(x-r, y-r, x+r, y+r)
 
-def animation(width, height):
-    
+def animation(width, height, circles, moves, dist):
+    master = Tk()
+    canvas = Canvas(master, 
+           width=width,
+           height=height)
+
+    canvas.pack()
+    master.title("UAV Tracking Simulation")
+    master.resizable(0, 0)
     target = Target(canvas, "red", [width/2, height/2], 10)
-    drone = UAV(canvas, "blue", [300, 300], 10)
+    drone = UAV(canvas, "blue", [300, 200], 10)
     canvas.create_rectangle(1225, 5, 1495, 200, fill = "white")
     canvas.create_text(1250, 10, anchor="nw", text = "Simulation Information: ")
     target_real = canvas.create_text(1250, 25, anchor="nw", text = "Target Position: ("+str(round(target.pos[0], 2))+", "+str(round(target.pos[1], 2))+")")
@@ -193,10 +197,13 @@ def animation(width, height):
     master.update_idletasks()
     master.update()
     count = 0
+    loopMax = 8000
+    loopCount = 0
     writeCount = 0
-    while True:
+    oldGuess = [0,0]
+    while loopCount < loopMax:
         count += 1
-        
+        loopCount +=1
         canvas.itemconfig(target_real, text = "Target Position: ("+str(round(target.pos[0],2))+", "+str(round(target.pos[1],2))+")")
         canvas.itemconfig(uav_real, text = "UAV Position: ("+str(round(drone.pos[0], 2))+", "+str(round(drone.pos[1], 2))+")")
         canvas.itemconfig(sig_strength, text = "Signal Strength: ("+str(round(drone.getSignalStrength(target.signal), 6))+")")
@@ -204,18 +211,26 @@ def animation(width, height):
         distance = math.sqrt(10000/strength)
 
         target.run()
-        drone.track1(target.signal)
+        drone.track1(target.signal, moves, circles, dist)
         
-        if len(drone.guesses) > 3:
-            actualDistance = formulas.distance(drone.guess[0], drone.guess[1], target.pos[0], target.pos[1])
+        if len(drone.guesses) > 3 and loopCount > 30:
+            if drone.guess != oldGuess:
+                actualDistance = formulas.distance(drone.guess[0], drone.guess[1], target.pos[0], target.pos[1])
+                
+                #filey = open('goatgoose.csv','a')
+                #csvwriter = csv.writer(filey, delimiter=',',
+                                #quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                #csvwriter.writerow([writeCount, actualDistance])
+                #filey.close() 
             writeCount +=1
-            filey = open('results.txt','a')
-            filey.write(str(writeCount) + "," + str(actualDistance)+"\n")
-            filey.close()
-        time.sleep(0.03)
+            oldGuess = drone.guess
+        time.sleep(0.02)
         master.update_idletasks()
         master.update()
-        
-animation(canvas_width, canvas_height)
-mainloop()
+    master.destroy()
+canvas_width = 1500
+canvas_height = 700
+
+
+animation(canvas_width, canvas_height, 6, 5, 100)
 

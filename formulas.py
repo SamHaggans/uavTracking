@@ -116,7 +116,3 @@ def getAverage(pointArray):
         return [avgx, avgy]
     else:
         return getAverage(points)
-
-
-#pints = [[0,0],[1,1],[2,2],[3,3],[3,4],[4,5],[4,6],[80,3]]
-#print(getAverage(pints))
